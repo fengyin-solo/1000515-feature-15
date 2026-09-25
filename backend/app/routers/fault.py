@@ -5,7 +5,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.schemas import ActionResult, EntryPayload, PageResult
+from app.schemas import ActionResult, EntryPayload, GradeBatchResult, GradePayload, PageResult
 from app.services.fault import FaultService
 
 router = APIRouter(prefix="/api/fault", tags=["故障登记"])
@@ -46,6 +46,21 @@ def create_entry(payload: EntryPayload) -> ActionResult:
     if missing:
         return ActionResult(ok=False, message=f"缺少必填字段：{'、'.join(missing)}")
     return ActionResult(ok=True, message="设备故障已登记", entry=entry)
+
+
+@router.post("/grade", response_model=GradeBatchResult)
+def grade_entries(payload: GradePayload) -> GradeBatchResult:
+    """批量定级：勾选的故障按同一份定级依据统一套用，逐条给出结果。
+
+    已恢复的不允许再定级，故障现象为空的说明原因，已挂起的单独列出；
+    同设备同时处置的故障合并成一条处置待办，定级后处理期限跟着更新。
+    """
+    if not payload.ids:
+        raise HTTPException(status_code=400, detail="请先勾选要定级的故障")
+    basis = payload.basis.strip()
+    if not basis:
+        raise HTTPException(status_code=400, detail="定级依据不能为空，请填写统一定级依据")
+    return GradeBatchResult(**service.grade_entries(payload.ids, basis))
 
 
 @router.post("/{entry_id}/actions", response_model=ActionResult)
