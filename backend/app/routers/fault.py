@@ -5,14 +5,14 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.schemas import ActionResult, EntryPayload, PageResult
+from app.schemas import ActionResult, EntryPayload, GradePayload, GradeResult, PageResult
 from app.services.fault import FaultService
 
 router = APIRouter(prefix="/api/fault", tags=["故障登记"])
 
 service = FaultService()
 
-LIST_FIELDS = ["故障编号", "发生设备", "故障现象", "影响范围", "发生时间", "报告人", "恢复时间", "故障状态"]
+LIST_FIELDS = ["故障编号", "发生设备", "故障现象", "影响范围", "发生时间", "报告人", "恢复时间", "故障状态", "定级等级", "处理期限"]
 STATUSES = ["待定级", "已定级", "处置中", "已恢复", "已挂起"]
 
 
@@ -28,6 +28,28 @@ def list_entries(
         raise HTTPException(status_code=400, detail="每页最多 200 条，请缩小分页范围")
     items, total = service.list_entries(keyword=keyword, status=status, page=page, size=size)
     return PageResult(items=items, total=total, page=page, size=size)
+
+
+@router.post("/grade", response_model=GradeResult)
+def grade_entries(payload: GradePayload) -> GradeResult:
+    """批量定级：多选故障按同一份定级依据套用，逐条给出结果；已恢复、已挂起、故障现象为空的会被拦下并说明原因。"""
+    result, message = service.grade_batch(payload.ids, payload.grade, payload.basis)
+    if result is None:
+        return GradeResult(ok=False, message=message)
+    return GradeResult(**result)
+
+
+@router.get("/todos")
+def list_todos() -> dict[str, Any]:
+    """处置待办：同一台设备的故障合并成一条待办，被挂起的故障单独列出。"""
+    return service.todos()
+
+
+@router.get("/export")
+def export_entries() -> dict[str, Any]:
+    """导出故障登记清单：返回当前过滤条件下的全量数据。"""
+    items, total = service.list_entries(page=1, size=10000)
+    return {"module": "fault", "total": total, "items": items}
 
 
 @router.get("/{entry_id}", response_model=dict)
@@ -56,10 +78,3 @@ def run_action(entry_id: int, payload: EntryPayload) -> ActionResult:
     if entry is None:
         return ActionResult(ok=False, message=message)
     return ActionResult(ok=True, message=message, entry=entry)
-
-
-@router.get("/export")
-def export_entries() -> dict[str, Any]:
-    """导出故障登记清单：返回当前过滤条件下的全量数据。"""
-    items, total = service.list_entries(page=1, size=10000)
-    return {"module": "fault", "total": total, "items": items}

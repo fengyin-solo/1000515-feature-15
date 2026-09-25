@@ -28,6 +28,24 @@ class EntryPayload(BaseModel):
     remark: str | None = None
 
 
+class GradePayload(BaseModel):
+    """批量定级提交：勾选的故障 id 集合，加上统一套用的定级等级与定级依据。"""
+
+    ids: list[int] = Field(default_factory=list)
+    grade: str = ""
+    basis: str = ""
+
+
+class GradeResult(BaseModel):
+    """批量定级结果：逐条给出结论，并带上合并后的处置待办与单独列出的挂起清单。"""
+
+    ok: bool
+    message: str
+    results: list[dict[str, Any]] = Field(default_factory=list)
+    todos: list[dict[str, Any]] = Field(default_factory=list)
+    suspended: list[dict[str, Any]] = Field(default_factory=list)
+
+
 
 class SectionEntry(BaseModel):
     """线路区段明细结构。"""
